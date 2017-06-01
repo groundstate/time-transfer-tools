@@ -49,6 +49,7 @@ classdef RINEXobs < matlab.mixin.Copyable
         t;   % measurement times 
         obsTypes; % vector of observation types - the index is the data column
         nobsTypes; % number of observation types, for convenience
+        obsInterval; % observation interval
     end
     
     properties (Constant)
@@ -74,7 +75,7 @@ classdef RINEXobs < matlab.mixin.Copyable
     methods (Access='public')
         function obj=RINEXobs(fname)
             fobs=fopen(fname);
-            
+            obj.obsInterval = -1; % flags that this was not found
             % Parse the header
             while (~feof(fobs))
                 l = fgetl(fobs);
@@ -85,17 +86,16 @@ classdef RINEXobs < matlab.mixin.Copyable
                     end
                     continue;
                 end
+                if (contains(l,'INTERVAL'))
+                    obj.obsInterval = str2double(l(1:10));
+                    continue;
+                end
                 % FIXME should check the time of first and last obs
                 % and the interval
                 if (contains(l,'TYPES OF OBSERV'))
                     obj.nobsTypes = str2num(l(1:6));
                     obj.obsTypes = zeros(1,obj.nobsTypes);
-                    % Use zero because this is the convention in RINEX for
-                    % missing data
-                    % The data structure wastes memory but is easier to
-                    % work with for time-transfer, where we want to match
-                    % observations
-                    gps = zeros(2900,RINEXobs.NSV_GPS,obj.nobsTypes); % extra for duplicates
+                    
                     obsl = sprintf('%-80s',l); % pad it
                     % Append any continuation lines UNTESTED
                     nlines = ceil((obj.nobsTypes-9)/9);
@@ -138,8 +138,22 @@ classdef RINEXobs < matlab.mixin.Copyable
                 end
             end
             
+            if (obj.obsInterval < 0)
+                obj.obsInterval = 30;
+                fprintf('INTERVAL not defined: assuming 30 s\n');
+            end
+            
+            
+            % This data structure wastes memory but is easier to
+            % work with for time-transfer, where we want to match
+            % observations
+            % Use zeros() because this is the convention in RINEX for
+            % missing data
+            nobs = ceil(1.01*86400/obj.obsInterval);% extra for duplicates
+            gps = zeros(nobs,RINEXobs.NSV_GPS,obj.nobsTypes); 
+                    
             % Now read the data file
-            t = NaN(2900,1); % current observation time in seconds
+            t = NaN(nobs,1); % current observation time in seconds
             cnt = 0;
             while (~feof(fobs))
                 l = fgetl(fobs);
