@@ -1,7 +1,10 @@
 classdef RINEXobs < matlab.mixin.Copyable
 % RINEXObs - a class for reading RINEX observation files
 % Usage:
-%   obs=RINEXObs(filename)
+%   obs=RINEXObs(filename,options)
+%
+% Options are
+%   showProgress [yes,no] : shows a progress indicator
 %
 % Currently supports RINEX V2 only (written to v2.11 specification)
 %Author: MJW
@@ -44,12 +47,14 @@ classdef RINEXobs < matlab.mixin.Copyable
 %
 
     properties
-        ver; % RINEX version
+        majorVer,minorVer; % RINEX version
         gps; % 3-D matrix of GPS measurements (time,sv no.,measurement)
+        glonass; 
         t;   % measurement times 
         obsTypes; % vector of observation types - the index is the data column
         nobsTypes; % number of observation types, for convenience
         obsInterval; % observation interval
+        satSystems; 
     end
     
     properties (Constant)
@@ -66,23 +71,69 @@ classdef RINEXobs < matlab.mixin.Copyable
         S2=10;
         % constellations
         GPS=1;
+        GLONASS=2;
+        BEIDOU=4;
+        GALILEO=8;
     end
     
     properties (Constant,Access=private)
         NSV_GPS=32;
+        NSV_GLONASS=32;
     end
     
     methods (Access='public')
-        function obj=RINEXobs(fname)
+        function obj=RINEXobs(fname,varargin)
+            
+            showProgress = 0;
+            
+            if (rem(nargin -1,2) ~= 0)
+                error('RINEXobs:RINEXobs','missing option or argument');
+            end 
+            
+            nopts = (nargin - 1)/2;
+            for i=1:nopts
+                if (strcmp(varargin{i*2-1},'showProgress'))
+                    if (strcmp(varargin{i*2},'yes'))
+                        showProgress=1;
+                    elseif (strcmp(varargin{i*2},'no'))
+                        showProgress=0;
+                    else
+                        error('RINEXobs:RINEXobs',['bad argument ',varargin{i*2}]);
+                    end
+                    
+                else
+                    error('RINEXobs:RINEXobs',['unknown option ',varargin{i*2-1}]);
+                end
+            end
+            
+            if (~exist(fname,'file'))
+                error('RINEXobs:RINEXobs',['unable to open ',fname]);
+            end
+            
             fobs=fopen(fname);
             obj.obsInterval = -1; % flags that this was not found
             % Parse the header
             while (~feof(fobs))
                 l = fgetl(fobs);
                 if (contains(l,'RINEX VERSION'))
-                    obj.ver = strtrim(l(1:9));
-                    if (str2double(ver) >= 3)
+                    verStr = strtrim(l(1:9));
+                    obj.majorVer = floor(str2double(verStr));
+                    obj.minorVer = str2double(verStr)-obj.majorVer;
+                    if (obj.majorVer >= 3)
                         error('RINEXobs:RINExobs',['Version ',ver,' is not supported yet (2.xx only)']);
+                    end
+                    if (obj.majorVer == 2)
+                        % valid types are G (or blank), R, S, E, M
+                        satSystem = l(41);
+                        if (satSystem == ' ' || (satSystem == 'G'))
+                            obj.satSystems = RINEXobs.GPS;
+                        elseif (satSystem == 'R')
+                            obj.satSystems = RINEXobs.GLONASS
+                        elseif (satSystem == 'M')
+                            obj.satSystems = bitor(RINEXobs.GLONASS,RINEXobs.GPS);
+                        else
+                            error('RINEXobs:RINExobs','satellite system unsupported');
+                        end
                     end
                     continue;
                 end
@@ -143,18 +194,25 @@ classdef RINEXobs < matlab.mixin.Copyable
                 fprintf('INTERVAL not defined: assuming 30 s\n');
             end
             
-            
             % This data structure wastes memory but is easier to
             % work with for time-transfer, where we want to match
             % observations
             % Use zeros() because this is the convention in RINEX for
             % missing data
             nobs = ceil(1.01*86400/obj.obsInterval);% extra for duplicates
-            gps = zeros(nobs,RINEXobs.NSV_GPS,obj.nobsTypes); 
-                    
+           
+            if (bitand(obj.satSystems,RINEXobs.GPS))
+                gps = zeros(nobs,RINEXobs.NSV_GPS,obj.nobsTypes); 
+            end
+            
+            if (bitand(obj.satSystems,RINEXobs.GLONASS))
+                glonass = zeros(nobs,RINEXobs.NSV_GLONASS,obj.nobsTypes); 
+            end
+            
             % Now read the data file
             t = NaN(nobs,1); % current observation time in seconds
             cnt = 0;
+            lasthr=-1;
             while (~feof(fobs))
                 l = fgetl(fobs);
                 
@@ -166,6 +224,10 @@ classdef RINEXobs < matlab.mixin.Copyable
                 cnt = cnt+1;
                 t(cnt)= hr*3600 + min*60+sec; 
                 nsats =str2num(l(30:32));
+                if (hr ~= lasthr && showProgress)
+                    fprintf('%d ',hr);
+                    lasthr=hr;
+                end
                 % fprintf('%d %d %d\n',hr,min,sec);
                 % Build a string of all SVIDs for parsing
                 if (nsats <=12)
@@ -184,54 +246,64 @@ classdef RINEXobs < matlab.mixin.Copyable
                 % fprintf('[%s]\n',sats);
                 for i=1:nsats
                     svid = sats(1+(i-1)*3:i*3);
-                    if (svid(1)=='G')
-                        prn = str2num(svid(2:3));
-                        % If more than 5 observations then there are
-                        % multiple lines to read
-                        obstr = '';
-                        nlines = ceil((obj.nobsTypes-5)/5)+1;
-                        %fprintf('[%s]\n',obstr);
-                        for line=1:nlines;
-                            % there could be a whole line missing or
-                            % or just some measurements at the end so
-                            % pad it out to 80 characters
-                            nl = fgetl(fobs);
-                            newobs=sprintf('%-80s',nl);
-                            %  fprintf('[%s]\n',newobs);
-                            obstr  = [obstr,newobs]; % preserve trailing spaces
-                        end
+                   
+                    prn = str2num(svid(2:3));
+                    % If more than 5 observations then there are
+                    % multiple lines to read
+                    obstr = '';
+                    nlines = ceil((obj.nobsTypes-5)/5)+1;
+                    %fprintf('[%s]\n',obstr);
+                    for line=1:nlines;
+                         % there could be a whole line missing or
+                         % or just some measurements at the end so
+                         % pad it out to 80 characters
+                         nl = fgetl(fobs);
+                         newobs=sprintf('%-80s',nl);
+                         %  fprintf('[%s]\n',newobs);
+                         obstr  = [obstr,newobs]; % preserve trailing spaces
+                    end
                        
-                        % fprintf('%d %d\n',linestodo,length(obstr));
-                        % Now parse the string
-                        for o=1:obj.nobsTypes
-                            % fprintf('%d %s %d %s\n',cnt,svid,o,obstr(1+(o-1)*16:1+(o-1)*16+13));
-                            pr = str2double(obstr(1+(o-1)*16:1+(o-1)*16+13));
-                            % Missing data can be flagged as zero or
-                            % 'blank' so the conversion can fail
-                            if (~isnan(pr))
+                    % fprintf('%d %d\n',linestodo,length(obstr));
+                    % Now parse the string
+                    for o=1:obj.nobsTypes
+                        % fprintf('%d %s %d %s\n',cnt,svid,o,obstr(1+(o-1)*16:1+(o-1)*16+13));
+                        pr = str2double(obstr(1+(o-1)*16:1+(o-1)*16+13));
+                        % Missing data can be flagged as zero or
+                        % 'blank' so the conversion can fail
+                        if (~isnan(pr))
+                            if (bitand(obj.satSystems,RINEXobs.GPS) && svid(1)=='G')    
                                 gps(cnt,prn,o) = pr;
+                            elseif (bitand(obj.satSystems,RINEXobs.GLONASS) && svid(1)=='R')  
+                                glonass(cnt,prn,o) = pr;
                             end
                         end
+                    end
                         % gps(cnt,prn,:)
                         % fprintf('\n');
-                    else % skip it
-                        nlines = ceil((obj.nobsTypes-5)/5)+1;
-                        for line=1:nlines
-                            fgetl(fobs);
-                        end    
-                    end
-                    
                 end
                 %fprintf('%d %s\n',nsats,sats);
             end
-            obj.gps = gps;
+           
             obj.t = t;
             % Now clean up the arrays by deleting missing measurement
             % epochs
             bad = isnan(obj.t);
-            obj.gps(bad,:,:)=[];
+            if (bitand(obj.satSystems,RINEXobs.GPS))
+                obj.gps = gps;
+                obj.gps(bad,:,:)=[];
+            end
+            if (bitand(obj.satSystems,RINEXobs.GLONASS))
+                obj.glonass = glonass;
+                obj.glonass(bad,:,:)=[];
+            end
+            
             obj.t(bad)=[];
             fclose(fobs);
+            
+            if (showProgress == 1)
+                fprintf(' ... done\n');
+            end
+            
         end % of RINEXObs
         
         function [ok] = hasObservation(obj,obsType)
