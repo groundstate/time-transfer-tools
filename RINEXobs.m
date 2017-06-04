@@ -1,49 +1,57 @@
 classdef RINEXobs < matlab.mixin.Copyable
-% RINEXObs - a class for reading RINEX observation files
+% RINEXOBS - a class for reading RINEX observation files
 % Usage:
-%   obs=RINEXObs(filename,options)
+%   obs=RINEXOBS(filename,options)
 %
 % Options are
-%   showProgress [yes,no] : shows a progress indicator
+%   showProgress [yes,no] : shows a progress indicator, printing each hour as an hourly block is read.
 %
 % Currently supports RINEX V2 only (written to v2.11 specification)
-%Author: MJW
 % 
-%RINEXobs Properties:
+% Known bugs: it's slow. That's why there's a progress indicator. I'll fix this eventually.
+%
+% RINEXOBS Properties:
 %   ver - RINEX version
 %   gps - 3-D matrix of GPS measurements (time,sv no.,measurement)
 %   t - vector of measurement times 
 %   obsTypes - vector of observation types - the index is the data column
 %   nobsTypes - number of observation types, for convenience
 %
-%RINEXobs Methods:
-%   hasObservation - whether an observation is present
-%   obsColumn - data column containing an observation type
+% RINEXOBS Methods:
+%   hasObservation - returns whether the specified observation is present
+%   obsColumn - returns the index of the data column containing the specified observation 
 %   match - match measurements
 %   avprdiff - averaged pseudorange differences 
+% 
 % Tested on Septentrio v2.11 RINEX
 % 
-%License
-%The MIT License (MIT)
+% Example:
+%   rnxo = RINEXobs('SYDN10190.16O','showProgress','no');
+%
+% Author: MJW
+%
+
+% License
+% The MIT License (MIT)
 % 
-%Copyright (c) 2017 Michael J. Wouters
-%Permission is hereby granted, free of charge, to any person obtaining a copy
-%of this software and associated documentation files (the "Software"), to deal
-%in the Software without restriction, including without limitation the rights
-%to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-%copies of the Software, and to permit persons to whom the Software is
-%furnished to do so, subject to the following conditions:
+% Copyright (c) 2017 Michael J. Wouters
+% Permission is hereby granted, free of charge, to any person obtaining a copy
+% of this software and associated documentation files (the "Software"), to deal
+% in the Software without restriction, including without limitation the rights
+% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+% copies of the Software, and to permit persons to whom the Software is
+% furnished to do so, subject to the following conditions:
 % 
-%The above copyright notice and this permission notice shall be included in
-%all copies or substantial portions of the Software.
+% The above copyright notice and this permission notice shall be included in
+% all copies or substantial portions of the Software.
 % 
-%THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-%IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-%FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-%AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-%LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-%OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-%THE SOFTWARE. 
+% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+% THE SOFTWARE. 
 %
 
     properties
