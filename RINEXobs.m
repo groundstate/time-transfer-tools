@@ -75,8 +75,12 @@ classdef RINEXobs < matlab.mixin.Copyable
         C2=6;
         C5=7;
         L5=8;
-        S1=9;
-        S2=10;
+        C7=9;
+        L7=10;
+        C8=11;
+        L8=12;
+        S1=13;
+        S2=14;
         % constellations
         GPS=1;
         GLONASS=2;
@@ -154,18 +158,19 @@ classdef RINEXobs < matlab.mixin.Copyable
                 if (contains(l,'TYPES OF OBSERV'))
                     obj.nobsTypes = str2num(l(1:6));
                     obj.obsTypes = zeros(1,obj.nobsTypes);
-                    
-                    obsl = sprintf('%-80s',l); % pad it
+                    obsl = sprintf('%-80s',l);
                     % Append any continuation lines UNTESTED
-                    nlines = ceil((obj.nobsTypes-9)/9);
+                    nlines = ceil(obj.nobsTypes/9);
                     for line=2:nlines % first one done
-                        nl =  sprintf('%-80s',getl(fobs));
-                        obsl=strcat(obsl,nl);
+                        nl =  sprintf('%-80s',fgetl(fobs));
+                        obsl= [obsl,nl];
                     end
                     for i=1:obj.nobsTypes
                         currline = floor(i/10);
-                        tobs = obsl(currline*80+i*6 + 5: currline*80+(i+1)*6);
-                        %fprintf('%s\n',tobs);
+                        il = i - currline*9;
+                        fprintf('%i %i\n',i,currline);
+                        tobs = obsl(currline*80+il*6 + 5: currline*80+(il+1)*6);
+                        fprintf('%s\n',tobs);
                         if (strcmp(tobs,'C1'))
                             obj.obsTypes(i)=RINEXobs.C1;
                         elseif (strcmp(tobs,'L1'))
@@ -182,6 +187,14 @@ classdef RINEXobs < matlab.mixin.Copyable
                             obj.obsTypes(i)=RINEXobs.C5;
                         elseif (strcmp(tobs,'L5'))
                             obj.obsTypes(i)=RINEXobs.L5;
+                        elseif (strcmp(tobs,'C7'))
+                            obj.obsTypes(i)=RINEXobs.C7;
+                        elseif (strcmp(tobs,'L7'))
+                            obj.obsTypes(i)=RINEXobs.L7;
+                        elseif (strcmp(tobs,'C8'))
+                            obj.obsTypes(i)=RINEXobs.C8;
+                        elseif (strcmp(tobs,'L8'))
+                            obj.obsTypes(i)=RINEXobs.L8;
                         elseif (strcmp(tobs,'S1'))
                             obj.obsTypes(i)=RINEXobs.S1;
                         elseif (strcmp(tobs,'S2'))
