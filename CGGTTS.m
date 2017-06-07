@@ -1,4 +1,3 @@
-
 classdef CGGTTS < matlab.mixin.Copyable
 	% CGGTTS Reads and holds a sequence of CGGTTS files
 	%  Usage:
@@ -75,6 +74,12 @@ classdef CGGTTS < matlab.mixin.Copyable
 		FR,HC,FRC; % V2E extras
 		CK;
 	end
+  
+  properties (Constant)
+		V_1=1; % CGGTTS versions
+		V_2=2;
+		V_2E=3;
+  end
   
   properties (Access='private')
 		namingConvention;
@@ -161,12 +166,14 @@ classdef CGGTTS < matlab.mixin.Copyable
 				% Read the header of every file, just in case there is something odd
 				% Line 1 Version
 				hdrline = fgets(fh);
-				[mat]=regexp(hdrline,'\s*DATA\s*FORMAT\s*VERSION\s*=\s*(1|01|2E|2e)','tokens');
+				[mat]=regexp(hdrline,'\s*DATA\s*FORMAT\s*VERSION\s*=\s*(1|01|02|2E|2e)','tokens');
 				if (size(mat))
 					if (strcmp(mat{1},'1') || strcmp(mat{1},'01')) 
-						obj.Version=1;
+						obj.Version=CGGTTS.V_1;
+					elseif (strcmp(mat{1},'02')) 
+						obj.Version=CGGTTS.V_2;
 					elseif (strcmp(mat{1},'2E') || strcmp(mat{1},'2e')) 
-						obj.Version=2;
+						obj.Version=CGGTTS.V_2E;
 					else
 						error('Unable to determine the CGGTTS version in the input file %s',fname);
 					end;
@@ -197,24 +204,65 @@ classdef CGGTTS < matlab.mixin.Copyable
 				hdrline = fgets(fh);
 				% Line 11 COMMENTS
 				hdrline = fgets(fh);
-				% Line 12 INT DLY
+				% Line 12 INT DLY or for V2E SYSDLY, or TOTDLY
 				hdrline = fgets(fh);
-				[mat]=regexp(hdrline,'INT\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-				if (size(mat))
-						obj.CADelay=str2double(mat{1});
-				end;
-				% Line 13 CAB DLY
-				hdrline = fgets(fh);
-				[mat]=regexp(hdrline,'CAB\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-				if (size(mat))
+				
+				[mat]=regexp(hdrline,'INT\s+DLY\s*=','match');
+				if (size(mat)) % if INT DLY, then read CABDLY and REFDLY for all versions
+					dly = obj.ParseDelay(hdrline,fname);
+					if (size(dly))
+						if (obj.Version == CGGTTS.V_1)
+							obj.CADelay = dly{1,3};
+						end
+					end
+					% Special case ? some v02 files have an extra  INT DLY line for the P1 and P2 delays
+					hdrline = fgets(fh);
+					[mat]=regexp(hdrline,'INT\s+DLY\s*','match');
+					if (size(mat))
+						warning('Skipped extra INT DLY');
+						hdrline = fgets(fh);
+					end 
+					
+					% Line 13 CAB DLY
+					% Already read the line
+					[mat]=regexp(hdrline,'CAB\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+					if (size(mat))
 						obj.CableDelay=str2double(mat{1});
-				end;
-				% Line 14 REF DLY
-				hdrline = fgets(fh);
-				[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
-				if (size(mat))
-						obj.ReferenceDelay=str2double(mat{1});
-				end;
+					else
+						warning('Bad CAB DLY in %s',fname);
+					end 
+					
+					% Line 14 REF DLY
+					hdrline = fgets(fh);
+					[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+					if (size(mat))
+							obj.ReferenceDelay=str2double(mat{1});
+					else
+						warning('Bad REF DLY in %s',fname);
+					end
+				
+				else
+					if ((obj.Version==CGGTTS.V_1) || (obj.Version==CGGTTS.V_2))
+						warning('Bad INT DLY in %s',fname);
+					else
+						hdrline = fgets(fh);
+						[mat]=regexp(hdrline,'SYS\s+DLY\s*=','match');
+						if (size(mat))
+							[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+							if (size(mat))
+								obj.ReferenceDelay=str2double(mat{1});
+							else
+								warning('Bad REF DLY in %s',fname);
+							end
+						else
+							[mat]=regexp(hdrline,'TOT\s+DLY\s*=','match');
+							if (size(mat))
+								
+							end
+						end
+					end
+				end
+				
 				% Line 15 REF
 				hdrline = fgets(fh);
 				% Line 16 CKSUM
@@ -236,13 +284,13 @@ classdef CGGTTS < matlab.mixin.Copyable
         obj.SATSYS=1;obj.PRN=2;obj.CL=3; obj.MJD=4;obj.STTIME=5;obj.TRKL=6;obj.ELV=7;obj.AZTH=8;obj.REFSV=9;obj.SRSV=10;
 				obj.REFGPS=11;obj.REFSYS=11;obj.SRGPS=12;obj.SRSYS=12;obj.DSG=13;obj.IOE=14;obj.MDTR=15;obj.SMDT=16;obj.MDIO=17;obj.SMDI=18;obj.MSIO=19;obj.SMSI=20;
 				obj.ISG=21;	
-				if (obj.Version==1)
+				if (obj.Version==CGGTTS.V_1)
 					if (obj.DualFrequency == 0)
 						obj.CK = 19;
 					else
 						obj.CK = 22;
 					end
-				elseif (obj.Version==2)
+				elseif ((obj.Version==CGGTTS.V_2) || (obj.Version==CGGTTS.V_2E))
 					if (obj.DualFrequency == 0)
 						obj.FR =  19;
 						obj.HC =  20;
@@ -259,17 +307,19 @@ classdef CGGTTS < matlab.mixin.Copyable
 				% Read the tracks
 				% Don't use fscanf(,inf) because we scan for a character in the first field of V2E files (which then picks up the newline)
 				while (~feof(fh))
+          l = fgetl(fh);
 					if (obj.DualFrequency == 0)
-						l = fgetl(fh);
-						if (obj.Version == 1)
+						if (obj.Version == CGGTTS.V_1)
 							cctftrks = sscanf(l,  '%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %x'); % (18) +5 for HHMMSS
-						else
+						elseif (obj.Version == CGGTTS.V_2E)
 							cctftrks = sscanf(l,'%c%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %s %x'); % (21) +1 for SAT, +5 for HHMMSS, +2 FRC
 						end
 					else
-						if (obj.Version == 1)
+						if (obj.Version == CGGTTS.V_1)
 							cctftrks = sscanf(l,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %x'); % (21) +5 for HHMMSS
-						else
+						elseif (obj.Version == CGGTTS.V_2)
+							cctftrks = sscanf(l,'%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %s %x'); % (24) +5 for HHMMSS, , +2 FRC
+						elseif (obj.Version == CGGTTS.V_2E)
 							cctftrks = sscanf(l,'%c%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %s %x'); % (24) +1 for SAT, +5 for HHMMSS, , +2 FRC
 						end
 					end
@@ -286,9 +336,9 @@ classdef CGGTTS < matlab.mixin.Copyable
 				return;
 			end
 			
-			% Prepend the SATSYS column to V1 data and fill it
-			if (obj.Version == 1)
-	      satsys(1:length(trks))=double('G');
+			% Prepend the SATSYS column to V1 and V02 data and fill it
+			if (obj.Version == CGGTTS.V_1 || obj.Version == CGGTTS.V_2)
+	      satsys(1:length(trks))=double('G'); % FIXME GLONASS not handled for V2
 	      trks = [satsys' trks];
 			end
 			
@@ -446,6 +496,20 @@ classdef CGGTTS < matlab.mixin.Copyable
     
 	methods (Access='private')
 	
+		function  ret = ParseDelay(obj,l,fname)
+			ret={};
+			if (obj.Version == CGGTTS.V_1)
+				[mat]=regexp(l,'(\w{3})\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+				if (size(mat))
+						ret{1,1}='';ret{1,2}='';ret{1,3}=str2double(mat{1}{2});
+				else
+						warning('Bad input: %s (%s)',l,fname);
+				end 
+			else
+			
+			end
+		end
+		
 		function SortSVN(obj)
 			% Sorts tracks by SVN within each time block
 			% as defined by MJD and STTIME
