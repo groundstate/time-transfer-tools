@@ -59,7 +59,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 		Lab;
 		CableDelay;
 		ReferenceDelay;
-		CADelay,P1Delay,P2Delay; % presumption is that this doesn't change
+		C1delay,P1delay,P2delay; % presumption is that delays don't change across multiple files
 		BadTracks; % count of bad tracks flagged in the CGGTTS data
 		DualFrequency;
         
@@ -136,9 +136,9 @@ classdef CGGTTS < matlab.mixin.Copyable
 			obj.DualFrequency=0;
 			obj.CableDelay=0;
 			obj.ReferenceDelay=0;
-			obj.CADelay=0;
-			obj.P1Delay=0;
-			obj.P2Delay=0;
+			obj.C1delay=0;
+			obj.P1delay=0;
+			obj.P2delay=0;
 			obj.BadTracks=0;
 			obj.Sorted=0;
 				
@@ -212,13 +212,23 @@ classdef CGGTTS < matlab.mixin.Copyable
 					dly = obj.ParseDelay(hdrline,fname);
 					if (size(dly))
 						if (obj.Version == CGGTTS.V_1)
-							obj.CADelay = dly{1,3};
+							obj.C1delay = dly{1}{1};
+						elseif (obj.Version == CGGTTS.V_2)
+							%FIXME
+						elseif (obj.Version == CGGTTS.V_2E)
+							if (length(dly)==1)
+								obj.C1delay = dly{1}{1};
+							elseif (length(dly)==2)
+								obj.P1delay = str2double(dly{1}{1});
+								obj.P2delay = str2double(dly{2}{1});
+							end
 						end
 					end
 					% Special case ? some v02 files have an extra  INT DLY line for the P1 and P2 delays
 					hdrline = fgets(fh);
 					[mat]=regexp(hdrline,'INT\s+DLY\s*','match');
 					if (size(mat))
+						dly = obj.ParseDelay(hdrline,fname);
 						warning('Skipped extra INT DLY');
 						hdrline = fgets(fh);
 					end 
@@ -227,7 +237,10 @@ classdef CGGTTS < matlab.mixin.Copyable
 					% Already read the line
 					[mat]=regexp(hdrline,'CAB\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
 					if (size(mat))
-						obj.CableDelay=str2double(mat{1});
+						dly = obj.ParseDelay(hdrline,fname);
+						if (obj.Version == CGGTTS.V_1 || obj.Version == CGGTTS.V_2E)
+							obj.CableDelay =dly{1}{1};
+						end
 					else
 						warning('Bad CAB DLY in %s',fname);
 					end 
@@ -236,7 +249,10 @@ classdef CGGTTS < matlab.mixin.Copyable
 					hdrline = fgets(fh);
 					[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
 					if (size(mat))
-							obj.ReferenceDelay=str2double(mat{1});
+						dly = obj.ParseDelay(hdrline,fname);
+						if (obj.Version == CGGTTS.V_1 || obj.Version == CGGTTS.V_2E)
+							obj.ReferenceDelay = dly{1}{1};
+						end
 					else
 						warning('Bad REF DLY in %s',fname);
 					end
@@ -250,7 +266,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 						if (size(mat))
 							[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
 							if (size(mat))
-								obj.ReferenceDelay=str2double(mat{1});
+								
 							else
 								warning('Bad REF DLY in %s',fname);
 							end
@@ -343,10 +359,6 @@ classdef CGGTTS < matlab.mixin.Copyable
 			end
 			
 			% Convert the HHMMSS [columns 4-9] field into decimal seconds
-%  			trks(:,4)= ((trks(:,4)-48)*10 + trks(:,5)-48)*3600 + ...
-%  				((trks(:,6)-48)*10 + trks(:,7)-48)* 60 + ...
-%  				(trks(:,8)-48)*10 + trks(:,9)-48;
-%  			trks(:,5:9)=[];
 			trks(:,5)= ((trks(:,5)-48)*10 + trks(:,6)-48)*3600 + ...
 				((trks(:,7)-48)*10 + trks(:,8)-48)* 60 + ...
 				(trks(:,9)-48)*10 + trks(:,10)-48;
@@ -499,14 +511,28 @@ classdef CGGTTS < matlab.mixin.Copyable
 		function  ret = ParseDelay(obj,l,fname)
 			ret={};
 			if (obj.Version == CGGTTS.V_1)
-				[mat]=regexp(l,'(\w{3})\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
+				[mat]=regexp(l,'\w{3}\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
 				if (size(mat))
-						ret{1,1}='';ret{1,2}='';ret{1,3}=str2double(mat{1}{2});
+						ret{1}{1}=str2double(mat{1}{1});ret{1}{2}='GPS';ret{1}{3}='C1';
 				else
 						warning('Bad input: %s (%s)',l,fname);
 				end 
-			else
-			
+			elseif  (obj.Version == CGGTTS.V_2)
+			elseif  (obj.Version == CGGTTS.V_2E)
+				if (strfind(l,'INT'))
+					[mat]=regexp(l,'([+-]?\d+\.?\d*)\s+ns\s+\((\w+)\s+(\w+)\)+','tokens');
+					for i=1:length(mat)
+						mat{i}{1}=str2double(mat{i}{1});
+					end
+				else 
+					[mat]=regexp(l,'([+-]?\d+\.?\d*)','tokens');
+					if (size(mat))
+						mat{1}{1}=str2double(mat{1}{1});
+					end
+				end
+				if (size(mat))
+					ret=mat;
+				end
 			end
 		end
 		
