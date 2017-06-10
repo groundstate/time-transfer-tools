@@ -8,7 +8,7 @@ classdef RINEXobs < matlab.mixin.Copyable
 %
 % Currently supports RINEX V2 only (written to v2.11 specification)
 % 
-% Known bugs: it's slow. That's why there's a progress indicator. I'll fix this eventually.
+% Known bugs: it's slow. That's why there's a progress indicator. I'll fix this gradually.
 %
 % RINEXOBS Properties:
 %   ver - RINEX version
@@ -20,13 +20,20 @@ classdef RINEXobs < matlab.mixin.Copyable
 % RINEXOBS Methods:
 %   hasObservation - returns whether the specified observation is present
 %   obsColumn - returns the index of the data column containing the specified observation 
-%   match - match measurements
+%   match - match measurements between two RINEX files
 %   avprdiff - averaged pseudorange differences 
 % 
 % Tested on Septentrio v2.11 RINEX
 % 
-% Example:
-%   rnxo = RINEXobs('SYDN10190.16O','showProgress','no');
+% Examples:   
+% % Load a file
+% rnxo = RINEXobs('SYDN10190.16O','showProgress','no');
+%
+% % Get GPS P1 measurements for PRN24
+% p1 = rnxo.gps(:,24,rnxo.obsColumn(RINEXobs.P1));
+%
+% % Match GPS P1 measurements in rnx1 and rnx2
+% matches = rnx1.match(rnx2,RINEXobs.GPS,RINEXobs.P1);
 %
 % Author: MJW
 %
@@ -127,7 +134,7 @@ classdef RINEXobs < matlab.mixin.Copyable
             % Parse the header
             while (~feof(fobs))
                 l = fgetl(fobs);
-                if (contains(l,'RINEX VERSION'))
+                if (strfind(l,'RINEX VERSION'))
                     verStr = strtrim(l(1:9));
                     obj.majorVer = floor(str2double(verStr));
                     obj.minorVer = str2double(verStr)-obj.majorVer;
@@ -149,13 +156,13 @@ classdef RINEXobs < matlab.mixin.Copyable
                     end
                     continue;
                 end
-                if (contains(l,'INTERVAL'))
+                if (strfind(l,'INTERVAL'))
                     obj.obsInterval = str2double(l(1:10));
                     continue;
                 end
                 % FIXME should check the time of first and last obs
                 % and the interval
-                if (contains(l,'TYPES OF OBSERV'))
+                if (strfind(l,'TYPES OF OBSERV'))
                     obj.nobsTypes = str2num(l(1:6));
                     obj.obsTypes = zeros(1,obj.nobsTypes);
                     obsl = sprintf('%-80s',l);
@@ -168,9 +175,9 @@ classdef RINEXobs < matlab.mixin.Copyable
                     for i=1:obj.nobsTypes
                         currline = floor(i/10);
                         il = i - currline*9;
-                        fprintf('%i %i\n',i,currline);
+                        % fprintf('%i %i\n',i,currline);
                         tobs = obsl(currline*80+il*6 + 5: currline*80+(il+1)*6);
-                        fprintf('%s\n',tobs);
+                        %fprintf('%s\n',tobs);
                         if (strcmp(tobs,'C1'))
                             obj.obsTypes(i)=RINEXobs.C1;
                         elseif (strcmp(tobs,'L1'))
@@ -205,7 +212,7 @@ classdef RINEXobs < matlab.mixin.Copyable
                     end
                     continue;
                 end
-                if (contains(l,'END OF HEADER'))
+                if (strfind(l,'END OF HEADER'))
                     break;
                 end
             end
@@ -231,20 +238,23 @@ classdef RINEXobs < matlab.mixin.Copyable
             end
             
             % Now read the data file
+            % str2double and str2num are slow so use sscanf
+            
             t = NaN(nobs,1); % current observation time in seconds
             cnt = 0;
             lasthr=-1;
+            
             while (~feof(fobs))
                 l = fgetl(fobs);
                 
                 % fprintf('%d %s',t,l);
                 % year 2:3,month 5:6,day 8:9,hr 11:12, min 14:15,sec 16:26
-                hr = str2double(l(11:12));
-                min = str2double(l(14:15));
-                sec = str2double(l(16:26));
+                hr = sscanf(l(11:12),'%d');
+                min = sscanf(l(14:15),'%d');
+                sec = sscanf(l(16:26),'%d');
                 cnt = cnt+1;
                 t(cnt)= hr*3600 + min*60+sec; 
-                nsats =str2num(l(30:32));
+                nsats = sscanf(l(30:32),'%d');
                 if (hr ~= lasthr && showProgress)
                     fprintf('%d ',hr);
                     lasthr=hr;
@@ -267,8 +277,12 @@ classdef RINEXobs < matlab.mixin.Copyable
                 % fprintf('[%s]\n',sats);
                 for i=1:nsats
                     svid = sats(1+(i-1)*3:i*3);
-                   
-                    prn = str2num(svid(2:3));
+                
+                    prn = sscanf(svid(2:3),'%d');
+                    if (~prn)
+											fprintf('%s\n',l);
+											error('Blah','Blah');
+                    end
                     % If more than 5 observations then there are
                     % multiple lines to read
                     obstr = '';
@@ -288,10 +302,10 @@ classdef RINEXobs < matlab.mixin.Copyable
                     % Now parse the string
                     for o=1:obj.nobsTypes
                         % fprintf('%d %s %d %s\n',cnt,svid,o,obstr(1+(o-1)*16:1+(o-1)*16+13));
-                        pr = str2double(obstr(1+(o-1)*16:1+(o-1)*16+13));
+                        pr = sscanf(obstr(1+(o-1)*16:1+(o-1)*16+13),'%f');
                         % Missing data can be flagged as zero or
                         % 'blank' so the conversion can fail
-                        if (~isnan(pr))
+                        if (pr)
                             if (bitand(obj.satSystems,RINEXobs.GPS) && svid(1)=='G')    
                                 gps(cnt,prn,o) = pr;
                             elseif (bitand(obj.satSystems,RINEXobs.GLONASS) && svid(1)=='R')  
@@ -320,6 +334,7 @@ classdef RINEXobs < matlab.mixin.Copyable
             
             obj.t(bad)=[];
             fclose(fobs);
+            
             
             if (showProgress == 1)
                 fprintf(' ... done\n');
