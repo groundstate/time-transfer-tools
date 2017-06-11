@@ -103,6 +103,8 @@ classdef RINEXobs < matlab.mixin.Copyable
     methods (Access='public')
         function obj=RINEXobs(fname,varargin)
             
+            warning('RINEXobs:RINEXobs','DEPRECATED - use the new classes');
+            
             showProgress = 0;
             
             if (rem(nargin -1,2) ~= 0)
