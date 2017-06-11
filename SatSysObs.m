@@ -46,13 +46,17 @@ classdef SatSysObs < matlab.mixin.Copyable
 		name;
 		obs; % 3-D matrix of measurements (time,sv no.,measurement)
 		obsTypes; % cell array of observation types - the index is the data column
-		nobsTypes;
+		nobsTypes; % not strictly the number of observation types
+		empty;
 	end
 	
 	methods (Access='public')
 	
 		function obj=SatSysObs(sysName)
 			obj.name=sysName;
+			obj.empty=true;
+			obsTypes={};
+			nobsTypes=0;
 		end % SatSysObs()
 		
 		function allocate(obj,nobs,nsv)

@@ -1,31 +1,24 @@
-classdef RINEX3obs < matlab.mixin.Copyable
-% RINEX3OBS - a class for reading RINEX3 observation files
+classdef RINEX3O < RINEXOBaseClass
+% RINEX3O - a class for reading RINEX3 observation files
 % Usage:
-%   obs=RINEXOBS3(filename,options)
+%   obs=RINEX3O(filename,options)
 %
 % Options are
 %   showProgress [yes,no] : shows a progress indicator, printing each hour as an hourly block is read.
 % 
 % Known bugs: Only reads up to 24 hrs of data - time stamp rolls over (easily fixed)
 %
-% RINEX3OBS Properties:
-%   ver - RINEX version
-%   gps - 3-D matrix of GPS measurements (time,sv no.,measurement)
-%   t - vector of measurement times 
-%   obsTypes - vector of observation types - the index is the data column
-%   nobsTypes - number of observation types, for convenience
+% RINEX3O Properties:
+%	 See RINEXOBASECLASS
 %
-% RINEX3OBS Methods:
-%   hasObservation - returns whether the specified observation is present
-%   obsColumn - returns the index of the data column containing the specified observation 
-%   match - match measurements between two RINEX files
-%   avprdiff - averaged pseudorange differences 
+% RINEX3O Methods:
+%	See RINEXOBASECLASS
 % 
 % Tested on Septentrio v3.02 RINEX
 % 
 % Examples:   
 % % Load a file
-% rnxo = RINEX3obs('SYDN10190.16O','showProgress','no');
+% rnxo = RINEX3O('SYDN10190.16O','showProgress','no');
 %
 %
 % Author: MJW
@@ -55,45 +48,18 @@ classdef RINEX3obs < matlab.mixin.Copyable
 %
 
 	properties
-		majorVer,minorVer; % RINEX version
-		observations;
-		t;   % measurement times 
-		obsInterval; % observation interval
-		satSystems; % bit mask
-	end
-    
-	properties (Constant)
-		% satellite systems
-		% use to eg index into observation matrix
-		GPS=1;
-		GLONASS=2;
-		GALILEO=3;
-		BEIDOU=4;
-	end
-   
-	properties (Constant,Access=private)
-		NSV_GPS=32;
-		NSV_GLONASS=32;
-		NSV_BEIDOU=32;
-		NSV_GALILEO=32;
-		
-		% bit masks for satellite systems
-		BM_GPS=1;
-		BM_GLONASS=2;
-		BM_GALILEO=4;
-		BM_BEIDOU=8;
 		
 	end
     
 	methods (Access='public')
 	
-		function obj=RINEX3obs(fname,varargin)
+		function obj=RINEX3O(fname,varargin)
 				
 			showProgress = 0;
 			obj.observations = SatSysObs.empty(); % helps matlab with typing
 			
 			if (rem(nargin - 1,2) ~= 0)
-				error('RINEX3obs:RINEX3obs','missing option or argument');
+				error('RINEX3O:RINEX3O','missing option or argument');
 			end 
 			
 			nopts = (nargin - 1)/2;
@@ -104,15 +70,15 @@ classdef RINEX3obs < matlab.mixin.Copyable
 					elseif (strcmp(varargin{i*2},'no'))
 						showProgress=0;
 					else
-						error('RINEX3obs:RINEX3obs',['bad argument ',varargin{i*2}]);
+						error('RINEX3O:RINEX3O',['bad argument ',varargin{i*2}]);
 					end
 				else
-					error('RINEX3obs:RINEX3obs',['unknown option ',varargin{i*2-1}]);
+					error('RINEX3O:RINEX3O',['unknown option ',varargin{i*2-1}]);
 				end
 			end
 			
 			if (~exist(fname,'file'))
-				error('RINEX3obs:RINEX3obs',['unable to open ',fname]);
+				error('RINEX3O:RINEX3O',['unable to open ',fname]);
 			end
 			
 			fobs=fopen(fname);
@@ -129,27 +95,27 @@ classdef RINEX3obs < matlab.mixin.Copyable
 					
 					satSystem = l(41);
 					if (satSystem == ' ' || (satSystem == 'G'))
-						obj.satSystems = RINEX3obs.BM_GPS;
-						obj.observations(RINEX3obs.GPS) = SatSysObs('GPS');
+						obj.satSystems = RINEXOBaseClass.BM_GPS;
+						obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
 					elseif (satSystem == 'R')
-						obj.satSystems = RINEX3obs.BM_GLONASS;
-						obj.observations(RINEX3obs.GLONASS) = SatSysObs('GLONASS');
+						obj.satSystems = RINEXOBaseClass.BM_GLONASS;
+						obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
 					elseif (satSystem == 'E')
-						obj.satSystems = RINEX3obs.BM_GALILEO;
-						obj.observations(RINEX3obs.GALILEO) = SatSysObs('Galileo');
+						obj.satSystems = RINEXOBaseClass.BM_GALILEO;
+						obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
 					elseif (satSystem == 'C')
-						obj.satSystems = RINEX3obs.BM_BEIDOU;
-						obj.observations(RINEX3obs.BEIDOU) = SatSysObs('BeiDou');
+						obj.satSystems = RINEXOBaseClass.BM_BEIDOU;
+						obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
 					elseif (satSystem == 'M')
-						obj.satSystems = bitor(RINEX3obs.BM_GLONASS,RINEX3obs.BM_GPS);
-						obj.satSystems = bitor(obj.satSystems,RINEX3obs.BM_BEIDOU);
-						obj.satSystems = bitor(obj.satSystems,RINEX3obs.BM_GALILEO);
-						obj.observations(RINEX3obs.GPS) = SatSysObs('GPS');
-						obj.observations(RINEX3obs.GLONASS) = SatSysObs('GLONASS');
-						obj.observations(RINEX3obs.GALILEO) = SatSysObs('Galileo');
-						obj.observations(RINEX3obs.BEIDOU) = SatSysObs('BeiDou');
+						obj.satSystems = bitor(RINEXOBaseClass.BM_GLONASS,RINEXOBaseClass.BM_GPS);
+						obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_BEIDOU);
+						obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_GALILEO);
+						obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
+						obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
+						obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
+						obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
 					else
-						error('RINEX3obs:RINExobs','satellite system is unknown');
+						error('RINEX3O:RINEX3O','satellite system is unknown');
 					end
 				
 					continue;
@@ -173,17 +139,17 @@ classdef RINEX3obs < matlab.mixin.Copyable
 					% fprintf('%s %i [%s]\n',satSysCode,nobs,obsl);
 					tmp = strsplit(obsl);
 					if (satSysCode == 'G')
-						obj.observations(RINEX3obs.GPS).obsTypes = tmp;
-						obj.observations(RINEX3obs.GPS).nobsTypes=nobs;
+						obj.observations(RINEXOBaseClass.GPS).obsTypes = tmp;
+						obj.observations(RINEXOBaseClass.GPS).nobsTypes=nobs;
 					elseif (satSysCode == 'R')
-						obj.observations(RINEX3obs.GLONASS).obsTypes = tmp;
-						obj.observations(RINEX3obs.GLONASS).nobsTypes= nobs;
+						obj.observations(RINEXOBaseClass.GLONASS).obsTypes = tmp;
+						obj.observations(RINEXOBaseClass.GLONASS).nobsTypes= nobs;
 					elseif (satSysCode == 'E')
-						obj.observations(RINEX3obs.GALILEO).obsTypes = tmp;
-						obj.observations(RINEX3obs.GALILEO).nobsTypes= nobs;
+						obj.observations(RINEXOBaseClass.GALILEO).obsTypes = tmp;
+						obj.observations(RINEXOBaseClass.GALILEO).nobsTypes= nobs;
 					elseif (satSysCode == 'C')
-						obj.observations(RINEX3obs.BEIDOU).obsTypes = tmp;
-						obj.observations(RINEX3obs.BEIDOU).nobsTypes= nobs;
+						obj.observations(RINEXOBaseClass.BEIDOU).obsTypes = tmp;
+						obj.observations(RINEXOBaseClass.BEIDOU).nobsTypes= nobs;
 					else
 						fprintf('Ignoring %s observations\n',satSysCode);
 					end
@@ -209,20 +175,20 @@ classdef RINEX3obs < matlab.mixin.Copyable
 			% missing data
 			nobs = ceil(1.01*86400/obj.obsInterval);% extra for duplicates
 			
-			if (bitand(obj.satSystems,RINEX3obs.BM_GPS))
-				obj.observations(RINEX3obs.GPS).allocate(nobs,RINEX3obs.NSV_GPS); 
+			if (bitand(obj.satSystems,RINEXOBaseClass.BM_GPS))
+				obj.observations(RINEXOBaseClass.GPS).allocate(nobs,RINEXOBaseClass.NSV_GPS); 
 			end
 			
-			if (bitand(obj.satSystems,RINEX3obs.BM_GLONASS))
-				obj.observations(RINEX3obs.GLONASS).allocate(nobs,RINEX3obs.NSV_GLONASS); 
+			if (bitand(obj.satSystems,RINEXOBaseClass.BM_GLONASS))
+				obj.observations(RINEXOBaseClass.GLONASS).allocate(nobs,RINEXOBaseClass.NSV_GLONASS); 
 			end
 			
-			if (bitand(obj.satSystems,RINEX3obs.BM_GALILEO))
-				obj.observations(RINEX3obs.GALILEO).allocate(nobs,RINEX3obs.NSV_GALILEO); 
+			if (bitand(obj.satSystems,RINEXOBaseClass.BM_GALILEO))
+				obj.observations(RINEXOBaseClass.GALILEO).allocate(nobs,RINEXOBaseClass.NSV_GALILEO); 
 			end
 			
-			if (bitand(obj.satSystems,RINEX3obs.BM_BEIDOU))
-				obj.observations(RINEX3obs.BEIDOU).allocate(nobs,RINEX3obs.NSV_BEIDOU); 
+			if (bitand(obj.satSystems,RINEXOBaseClass.BM_BEIDOU))
+				obj.observations(RINEXOBaseClass.BEIDOU).allocate(nobs,RINEXOBaseClass.NSV_BEIDOU); 
 			end
 			
 			% Now read the data file
@@ -261,16 +227,18 @@ classdef RINEX3obs < matlab.mixin.Copyable
 					satNum = sscanf(l(2:3),'%d');
 					
 					if (satSys == 'G')
-						isatSys = RINEX3obs.GPS;
+						isatSys = RINEXOBaseClass.GPS;
 					elseif (satSys == 'R')
-						isatSys = RINEX3obs.GLONASS;
+						isatSys = RINEXOBaseClass.GLONASS;
 					elseif (satSys == 'E')
-						isatSys = RINEX3obs.GALILEO;
+						isatSys = RINEXOBaseClass.GALILEO;
 					elseif (satSys == 'C')
-						isatSys = RINEX3obs.BEIDOU;
+						isatSys = RINEXOBaseClass.BEIDOU;
 					else
 						continue; % skip it
 					end
+					
+					obj.observations(isatSys).empty=false;
 					
 					% the line could have missing observations at the end, but no corresponding whitespace
 					% so check the line length
@@ -301,38 +269,16 @@ classdef RINEX3obs < matlab.mixin.Copyable
 			% Clean up a bit
 			obj.t = t;
 			bad = isnan(obj.t);
-			obj.observations(RINEX3obs.GPS).obs(bad,:,:)=[];
-			obj.observations(RINEX3obs.GLONASS).obs(bad,:,:)=[];
-			obj.observations(RINEX3obs.GALILEO).obs(bad,:,:)=[];
-			obj.observations(RINEX3obs.BEIDOU).obs(bad,:,:)=[];
+			for ss=RINEXOBaseClass.GPS:RINEXOBaseClass.BEIDOU
+				if (obj.observations(ss).empty)
+					obj.observations(ss).obs=[];
+				else
+					obj.observations(ss).obs(bad,:,:)=[];
+				end
+			end
 			obj.t(bad)=[];
 				
 		end % of RINEXObs
-		
-		function [ok] = hasObservation(obj,satSystem,obsType)
-		% Returns whether the specified observation type is available for the
-		% given satellite system
-			ok = false;
-			for i=1:obj.observations(satSystem).nobsTypes
-				if (strcmp(obj.observations(satSystem).obsTypes(i),obsType))
-					ok=true;
-					break;
-				end
-			end
-		end
-        
-		function [col] = obsColumn(obj,satSystem,obsType)
-		% Returns the column in the GNSS observation matrix
-		% containing the specified observation.
-		% Zero is returned if it's missing
-			col =0;
-			for i=1:obj.observations(satSystem).nobsTypes
-				if (strcmp(obj.observations(satSystem).obsTypes(i),obsType))
-					col=i;
-					break;
-				end
-			end
-		end
 		
 	end % of methods
 end
