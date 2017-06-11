@@ -91,6 +91,12 @@ classdef RINEX2O < RINEXOBaseClass
 			fobs=fopen(fname);
 			obj.obsInterval = -1; % flags that this was not found
 			
+			% Instance all of the Satellite Systems now - it simplifies the code  
+			obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS',RINEXOBaseClass.NSV_GPS);
+			obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS',RINEXOBaseClass.NSV_GLONASS);
+			obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo',RINEXOBaseClass.NSV_GALILEO);
+			obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou',RINEXOBaseClass.NSV_BEIDOU);
+			
 			% Parse the header
 			while (~feof(fobs))
 					
@@ -109,24 +115,17 @@ classdef RINEX2O < RINEXOBaseClass
 						satSystem = l(41);
 						if (satSystem == ' ' || (satSystem == 'G'))
 							obj.satSystems = RINEXOBaseClass.BM_GPS;
-							obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
 						elseif (satSystem == 'R')
 							obj.satSystems = RINEXOBaseClass.BM_GLONASS;
-							obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
 						elseif (satSystem == 'E')
 							obj.satSystems = RINEXOBaseClass.BM_GALILEO;
-							obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
 						elseif (satSystem == 'C')
 							obj.satSystems = RINEXOBaseClass.BM_BEIDOU;
-							obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
+							
 						elseif (satSystem == 'M')
 							obj.satSystems = bitor(RINEXOBaseClass.BM_GLONASS,RINEXOBaseClass.BM_GPS);
 							obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_BEIDOU);
 							obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_GALILEO);
-							obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
-							obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
-							obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
-							obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
 						else
 							error('RINEX2O:RINEX2O','satellite system is unknown');
 						end
@@ -159,6 +158,7 @@ classdef RINEX2O < RINEXOBaseClass
 						% GLONASS has 1,A,2,D
 						% Galileo has 1,5,6,7,8
 						% Beidou  has 1,2,6,7
+						
 						obj.setObservationCodes(tmp,RINEXOBaseClass.GPS,{'1','A','B','2','C','5'});
 						obj.setObservationCodes(tmp,RINEXOBaseClass.GLONASS,{'1','A','2','D'});
 						obj.setObservationCodes(tmp,RINEXOBaseClass.GALILEO,{'1','5','6','7','8'});

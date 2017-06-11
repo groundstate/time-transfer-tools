@@ -84,6 +84,11 @@ classdef RINEX3O < RINEXOBaseClass
 			fobs=fopen(fname);
 			obj.obsInterval = -1; % flags that this was not found
 			
+			obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS',RINEXOBaseClass.NSV_GPS);
+			obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS',RINEXOBaseClass.NSV_GLONASS);
+			obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo',RINEXOBaseClass.NSV_GALILEO);
+			obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou',RINEXOBaseClass.NSV_BEIDOU);
+			
 			% Parse the header
 			while (~feof(fobs))
 				l = fgetl(fobs);
@@ -92,28 +97,22 @@ classdef RINEX3O < RINEXOBaseClass
 					verStr = strtrim(l(1:9));
 					obj.majorVer = floor(str2double(verStr));
 					obj.minorVer = str2double(verStr)-obj.majorVer;
-					
+					if (obj.majorVer ~= '3')
+						error('RINEX3O:RINEX3O','Not RINEX 3.xx format');
+					end
 					satSystem = l(41);
 					if (satSystem == ' ' || (satSystem == 'G'))
 						obj.satSystems = RINEXOBaseClass.BM_GPS;
-						obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
 					elseif (satSystem == 'R')
 						obj.satSystems = RINEXOBaseClass.BM_GLONASS;
-						obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
 					elseif (satSystem == 'E')
 						obj.satSystems = RINEXOBaseClass.BM_GALILEO;
-						obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
 					elseif (satSystem == 'C')
 						obj.satSystems = RINEXOBaseClass.BM_BEIDOU;
-						obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
 					elseif (satSystem == 'M')
 						obj.satSystems = bitor(RINEXOBaseClass.BM_GLONASS,RINEXOBaseClass.BM_GPS);
 						obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_BEIDOU);
 						obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_GALILEO);
-						obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS');
-						obj.observations(RINEXOBaseClass.GLONASS) = SatSysObs('GLONASS');
-						obj.observations(RINEXOBaseClass.GALILEO) = SatSysObs('Galileo');
-						obj.observations(RINEXOBaseClass.BEIDOU) = SatSysObs('BeiDou');
 					else
 						error('RINEX3O:RINEX3O','satellite system is unknown');
 					end

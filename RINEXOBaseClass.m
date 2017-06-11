@@ -112,5 +112,67 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 			end
 		end
 		
-	end % of methods
+		function [matches] = match(obj,rnx,satSystem,obsType)
+		% Compares with another set of GNSS observations, and returns
+		% time-matched observations for the specified constellation and 
+		% observation type. 
+		% The format of the matrix is [][svn][time,obs1,obs2]
+
+		% Some inanity checks
+		
+			if (~obj.hasObservation(satSystem,obsType))
+				error('RINEXOBaseClass:matchObservations','observation missing');
+			end
+					
+			if (~rnx.hasObservation(satSystem,obsType))
+				error('RINEXOBaseClass:matchObservations','observation missing');
+			end
+			
+			obscol1 = obj.obsColumn(satSystem,obsType);
+			obscol2 = rnx.obsColumn(satSystem,obsType);
+			
+			nsv=obj.observations(satSystem).nsv;
+					
+			% Allocate storage
+			s1 = length(obj.t)-sum(isnan(obj.t));
+			s2 = length(rnx.t)-sum(isnan(rnx.t));
+			%fprintf('%d %d\n',s1,s2);
+			s = min(s1,s2);
+			matches = NaN(s,nsv,3);
+					
+			tj = 1;
+			ti = 1;
+			nmatches=0;
+			while ((ti <= length(obj.t)) && (tj <= length(rnx.t)))
+			
+				if (rnx.t(tj) == obj.t(ti))
+					nmatches=nmatches+1;
+					for sv=1:nsv
+						matches(nmatches,sv,1)=obj.t(ti);
+						m1 = obj.observations(satSystem).obs(ti,sv,obscol1);
+						m2 = rnx.observations(satSystem).obs(tj,sv,obscol2);
+						matches(nmatches,sv,2)=m1;
+						matches(nmatches,sv,3)=m2;
+					end
+					tj = tj + 1;
+					ti = ti + 1;
+					continue;
+				end
+				
+				if (rnx.t(tj) < obj.t(ti))
+					tj = tj + 1;
+					continue;
+				end
+				
+				if (rnx.t(tj) > obj.t(ti))
+					ti = ti + 1;
+					continue;
+				end
+					
+			end % of while
+			
+		end % of match()
+        
+	end % of public methods
+	
 end

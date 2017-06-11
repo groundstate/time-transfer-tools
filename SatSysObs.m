@@ -48,12 +48,14 @@ classdef SatSysObs < matlab.mixin.Copyable
 		obsTypes; % cell array of observation types - the index is the data column
 		nobsTypes; % not strictly the number of observation types
 		empty;
+		nsv;
 	end
 	
 	methods (Access='public')
 	
-		function obj=SatSysObs(sysName)
+		function obj=SatSysObs(sysName,nsv)
 			obj.name=sysName;
+			obj.nsv=nsv;
 			obj.empty=true;
 			obsTypes={};
 			nobsTypes=0;
