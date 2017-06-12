@@ -90,6 +90,8 @@ classdef RINEX2O < RINEXOBaseClass
 				
 			fobs=fopen(fname);
 			obj.obsInterval = -1; % flags that this was not found
+			yrOffset = 2000; % to fix 2 digit year
+			tref = 0; % POSIX time of start of day
 			
 			% Instance all of the Satellite Systems now - it simplifies the code  
 			obj.observations(RINEXOBaseClass.GPS) = SatSysObs('GPS',RINEXOBaseClass.NSV_GPS);
@@ -115,13 +117,16 @@ classdef RINEX2O < RINEXOBaseClass
 						satSystem = l(41);
 						if (satSystem == ' ' || (satSystem == 'G'))
 							obj.satSystems = RINEXOBaseClass.BM_GPS;
+							obj.timeSystem = RINEXOBaseClass.GPS; % default for pure GPS
 						elseif (satSystem == 'R')
 							obj.satSystems = RINEXOBaseClass.BM_GLONASS;
+							obj.timeSystem = RINEXOBaseClass.GLONASS;
 						elseif (satSystem == 'E')
 							obj.satSystems = RINEXOBaseClass.BM_GALILEO;
+							obj.timeSystem = RINEXOBaseClass.GALILEO;
 						elseif (satSystem == 'C')
 							obj.satSystems = RINEXOBaseClass.BM_BEIDOU;
-							
+							obj.timeSystem = RINEXOBaseClass.BEIDOU; % Not specified in v2.12 so assume same as v3.03
 						elseif (satSystem == 'M')
 							obj.satSystems = bitor(RINEXOBaseClass.BM_GLONASS,RINEXOBaseClass.BM_GPS);
 							obj.satSystems = bitor(obj.satSystems,RINEXOBaseClass.BM_BEIDOU);
@@ -139,8 +144,40 @@ classdef RINEX2O < RINEXOBaseClass
 						continue;
 					end
 					
-					% FIXME should check the time of first and last obs
-					% and the interval
+					% Get the time of the first observation so that we have a reference time
+					% for housekeeping
+					
+					if (strfind(l,'TIME OF FIRST OBS'))
+						yr = sscanf(l(1:6),'%d');
+						mon = sscanf(l(7:12),'%d');
+						day = sscanf(l(13:18),'%d');
+						hr = sscanf(l(19:24),'%d');
+						min = sscanf(l(25:30),'%d');
+						sec = sscanf(l(31:43),'%f');
+						obj.firstObs=datetime(yr,mon,day,hr,min,sec); % default TZ is UTC
+						tref=floor(posixtime(obj.firstObs)/86400)*86400; % beginning of day
+						if (yr < 2000) % breaks in 2100
+							yroffset = 1900;
+						end
+						
+						timeSys=l(49:51);
+						if (strcmp(timeSys,'GPS'))
+							obj.timeSystem = RINEXOBaseClass.GPS;
+						elseif (strcmp(timeSys,'GLO'))
+							obj.timeSystem = RINEXOBaseClass.GLONASS;
+						elseif (strcmp(timeSys,'GAL'))
+							obj.timeSystem = RINEXOBaseClass.GALILEO;
+						elseif (strcmp(timeSys,'BDT'))
+							obj.timeSystem = RINEXOBaseClass.BEIDOU; % not in the spec but seems like it ought to be
+						end
+						
+						continue;
+					end
+					
+					if (strfind(l,'LEAP SECONDS'))
+						obj.leapSeconds = str2double(l(1:6));
+					end
+					
 					if (strfind(l,'TYPES OF OBSERV'))
 						obj.totalObsTypes = str2num(l(1:6));
 						rnx2obsTypes = zeros(1,obj.totalObsTypes);
@@ -208,11 +245,17 @@ classdef RINEX2O < RINEXOBaseClass
 				
 				% fprintf('%d %s',t,l);
 				% year 2:3,month 5:6,day 8:9,hr 11:12, min 14:15,sec 16:26
+				yr = sscanf(l(2:3),'%d')+yrOffset;
+				mon = sscanf(l(5:6),'%d');
+				day = sscanf(l(8:9),'%d');
 				hr = sscanf(l(11:12),'%d');
 				min = sscanf(l(14:15),'%d');
 				sec = sscanf(l(16:26),'%d');
+				dt  = datetime(yr,mon,day,hr,min,sec); % default TZ is UTC
+				toffset = floor((posixtime(dt) - tref)/86400)*86400.0;
+				
 				cnt = cnt+1;
-				t(cnt)= hr*3600 + min*60+sec; 
+				t(cnt)= hr*3600 + min*60+sec+toffset; 
 				nsats = sscanf(l(30:32),'%d');
 				if (hr ~= lasthr && showProgress)
 					fprintf('%d ',hr);
@@ -283,7 +326,9 @@ classdef RINEX2O < RINEXOBaseClass
 			end % of while 
             
 			fclose(fobs);
-				
+			
+			obj.lastObs=dt;
+			
 			if (showProgress == 1)
 				fprintf(' ... done\n');
 			end

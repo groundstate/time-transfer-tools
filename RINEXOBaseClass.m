@@ -6,17 +6,21 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 % Known bugs: 
 %
 % RINEXOBASECLASS Properties:
-%   ver - RINEX version
+%   majorVer - RINEX major version
+%   minorVer - RINEX minor version
 %   observations - vector of SatSysObj
-%   t - vector of measurement times 
-%		obsInterval -
-%   satSystems -
+%   t - vector of measurement times (seconds relative to the beginning of the day of the first observation
+%   obsInterval - observation interval, in seconds, from the header (30 s default)
+%   satSystems - bit register of satellite systems in the file
+%   firstObs,lastObs - time of first observation (from header) and last observation 
+%   leapSeconds - number of leap seconds, from header
+%   timeSystem - time system, from header
 %
 % RINEXOBASECLASS Methods:
 %   hasObservation - returns whether the specified observation is present
 %   obsColumn - returns the index of the data column containing the specified observation 
 %   match - match measurements between two RINEX files
-%   avprdiff - averaged pseudorange differences 
+%   avPrDiff - averaged pseudorange differences (in m)
 % 
 % Tested on Septentrio v3.02 RINEX
 % 
@@ -54,6 +58,9 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 		t;   % measurement times 
 		obsInterval; % observation interval
 		satSystems; % bit mask
+		firstObs,lastObs; % DateTime; NOTE that lastObs may be determined from the file
+		leapSeconds; % number 
+		timeSystem;
 	end
     
 	properties (Constant)
@@ -81,9 +88,13 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
     
 	methods (Access='public')
 	
-		function obj=RINEXOBaseClass.m(fname,varargin)
+		function obj=RINEXOBaseClass(fname,varargin)
 				
 			obj.observations = SatSysObs.empty(); % helps matlab with typing
+			obj.firstObs=datetime(1980,1,6,0,0,0); 
+			obj.lastObs=datetime(1980,1,6,0,0,0); 
+			obj.leapSeconds = 0;
+			obj.timeSystem = RINEXOBaseClass.GPS;
 			
 		end % of RINEXObs
 		
@@ -172,6 +183,37 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 			end % of while
 			
 		end % of match()
+    
+		function [matches] = avPrDiff(obj,rnx,satSystem,obsType)
+		% Returns a vector of averaged pseudorange differences at each
+		% measurement time for the specified satellite system and
+		% observation type (where there are matches)
+			
+			% match() will check the inputs
+			all = obj.match(rnx,satSystem,obsType);
+	
+			matches=NaN(length(all),2);
+			nsv = obj.observations(satSystem).nsv;
+			
+			for i=1:length(all)
+				sum = 0;
+				ndiffs = 0;
+				for sv=1:nsv
+					if ((all(i,sv,2) ~= 0) && (all(i,sv,3) ~=0))
+						sum = sum + all(i,sv,2) - all(i,sv,3);
+						ndiffs = ndiffs+1;
+					end
+				end
+				if (ndiffs > 0)
+					matches(i,1)=all(i,1,1);
+					matches(i,2)=sum/ndiffs;
+				end
+			end
+			
+			bad = isnan(matches(:,1));
+			matches(bad,:)=[];
+						
+		end % of avPrDiff()
         
 	end % of public methods
 	
