@@ -63,8 +63,6 @@ classdef CGGTTS < matlab.mixin.Copyable
 		BadTracks; % count of bad tracks flagged in the CGGTTS data
 		DualFrequency;
         
-		Sorted;
-    
 		% Indices into the data matrix
 		% Most of these are constant 
 		SATSYS; % non-standard!
@@ -140,7 +138,6 @@ classdef CGGTTS < matlab.mixin.Copyable
 			obj.P1delay=0;
 			obj.P2delay=0;
 			obj.BadTracks=0;
-			obj.Sorted=0;
 				
 			for mjd=startMJD:stopMJD
 				if (namingConvention == CGGTTS.SimpleName)
@@ -390,6 +387,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 				trks(any(bad,1),:)=[];
 			end
       obj.Tracks=trks;
+      obj.SortSVN();
 		end
         
 		function obj = FilterTracks( obj, maxDSG, minTrackLength )
@@ -463,11 +461,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 					end
 				end
 			end
-			
-			if (obj.Sorted == 0) % only do it once
-				obj.SortSVN(); 
-			end;
-			
+	
 			n = size(obj.Tracks(),1);
 			i=1;
 			av=0;
@@ -503,7 +497,67 @@ classdef CGGTTS < matlab.mixin.Copyable
 				refgps(cnt,:) = [lastmjd+lastst/86400.0 av];
 			end
 		end
-        
+    
+    function [m1,m2]=match(obj,cggtts2)
+			% Match tracks with another CGGTTS object
+			% Returns two matched CGGTTS objects
+			m1=copy(obj);
+			m2=copy(cggtts2);
+			
+			n1 = size(m1.Tracks(),1);
+			n2 = size(m2.Tracks(),1);
+			
+			rx1Matches=ones(n1,1);
+			rx2Matches=ones(n2,1);
+				
+			i=1;
+			j=1;
+			
+			while (i<=n1)
+				mjd1=m1.Tracks(i,m1.MJD);
+				st1 =m1.Tracks(i,m1.STTIME);
+				prn1=m1.Tracks(i,m1.PRN);
+				while (j<=n2)
+					mjd2=m2.Tracks(j,m2.MJD);
+					st2 =m2.Tracks(j,m2.STTIME);
+					if (mjd2 > mjd1)    
+						break% stop searching - need to move pointer1
+					elseif (mjd2 < mjd1)
+						j=j+1; % need to move pointer2 ahead
+					elseif  (st2>st1) % MJDs must be same
+						break % stop searching - need to move pointer2
+					elseif ((mjd1==mjd2) && (st1 == st2))
+						% Times are matched so search for the track
+						prn2 =m2.Tracks(j,m2.PRN);
+						while ((prn1 > prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<n2))
+							j=j+1;
+							mjd2=m2.Tracks(j,m2.MJD);
+							st2 =m2.Tracks(j,m2.STTIME);
+							prn2=m2.Tracks(j,m2.PRN);
+						end
+						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<=n2))
+							% It's a match
+							rx1Matches(i)=0;
+							rx2Matches(j)=0; 
+							j=j+1;
+							break
+						else
+							% no match so move to next i
+							break
+						end;
+					else
+						j=j+1;
+					end
+				end
+				i=i+1;
+			end
+			
+			% Remove unmatched tracks
+			m1.Tracks(any(rx1Matches,2),:)=[];
+			m2.Tracks(any(rx2Matches,2),:)=[]; 
+					
+    end % of match
+    
 	end % of methods
     
 	methods (Access='private')
@@ -566,7 +620,6 @@ classdef CGGTTS < matlab.mixin.Copyable
 					% nothing more to do
 				end
 			end
-			obj.Sorted=1;
 		end
 		
 	end % methods
