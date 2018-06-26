@@ -242,8 +242,14 @@ classdef RINEX2O < RINEXOBaseClass
 			
 			while (~feof(fobs))
 				l = fgetl(fobs);
+				if (l(29) == '4') % COMMENT(s) follow
+                  nlines = sscanf(l(30:32),'%d');
+                  for line=1:nlines
+                      fgetl(fobs);
+                  end
+                  continue;
+                end
 				
-				% fprintf('%d %s',t,l);
 				% year 2:3,month 5:6,day 8:9,hr 11:12, min 14:15,sec 16:26
 				yr = sscanf(l(2:3),'%d')+yrOffset;
 				mon = sscanf(l(5:6),'%d');
@@ -254,8 +260,11 @@ classdef RINEX2O < RINEXOBaseClass
 				dt  = datetime(yr,mon,day,hr,min,sec); % default TZ is UTC
 				toffset = floor((posixtime(dt) - tref)/86400)*86400.0;
 				
+                
 				cnt = cnt+1;
+               
 				t(cnt)= hr*3600 + min*60+sec+toffset; 
+                
 				nsats = sscanf(l(30:32),'%d');
 				if (hr ~= lasthr && showProgress)
 					fprintf('%d ',hr);
