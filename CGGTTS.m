@@ -426,6 +426,22 @@ classdef CGGTTS < matlab.mixin.Copyable
 			ylabel('elevation (deg)');
 		end
         
+		function PlotSVHistory(obj,titleText)
+			startMJD=obj.Tracks(1,obj.MJD);
+			for svn=1:32
+				for t=1:length(obj.Tracks)
+					if (obj.Tracks(t,obj.PRN) == svn)
+						plot(obj.Tracks(t,obj.MJD)+obj.Tracks(t,obj.STTIME)/86400 -startMJD,obj.Tracks(t,obj.PRN),'ko');
+                        hold on; 
+					end 
+				end
+			end
+			title(titleText);
+			xlabel(['MJD - ',num2str(startMJD)]);
+			ylabel('SVN');
+			hold off;
+		end
+		
 		function Summary(obj)
 			fprintf('%s\n',obj.Lab);
 			fprintf('Cable delay = %g\n', obj.CableDelay);
