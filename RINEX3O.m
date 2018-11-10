@@ -19,7 +19,12 @@ classdef RINEX3O < RINEXOBaseClass
 % Examples:   
 % % Load a file
 % rnxo = RINEX3O('SYDN10190.16O','showProgress','no');
-%
+% 
+% % Determine which column the GPS C1C observations are in
+% C1Ccol = rnxo.obsColumn(rnxo.GPS,'C1C');
+% 
+% % Extract C1C pseudoranges for GPS SV 27
+% pr = rnxo.observations(rnxo.GPS).obs(:,27,C1Ccol);
 %
 % Author: MJW
 %
