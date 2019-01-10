@@ -75,7 +75,7 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 	properties (Constant,Access=protected)
 		NSV_GPS=32;
 		NSV_GLONASS=32;
-		NSV_BEIDOU=32;
+		NSV_BEIDOU=64;
 		NSV_GALILEO=32;
 		
 		% bit masks for satellite systems
@@ -215,6 +215,30 @@ classdef RINEXOBaseClass < matlab.mixin.Copyable
 						
 		end % of avPrDiff()
         
+    function [svcnt] = SVCountHistory(obj,satSystem)
+	% Returns a vector of SV count as a function of time
+       % The observation times are for all satellite systems
+       % There may not be observations for the satellite system
+       % that is being counted at all times, so zero the array
+       svcnt = zeros(length(obj.t),2);
+       nsv = obj.observations(satSystem).nsv;
+       nobs =  length(obj.observations(satSystem).obsTypes);
+       for i=1:length(svcnt)
+           cnt=0;
+           for s=1:nsv
+               for o=1:nobs
+                   if (obj.observations(satSystem).obs(i,s,o) ~= 0)
+                       cnt = cnt+1;
+                       break
+                   end
+               end
+           end
+           svcnt(i,1)=obj.t(i);
+           svcnt(i,2)=cnt;
+       end
+    end
+    
 	end % of public methods
 	
+    
 end
