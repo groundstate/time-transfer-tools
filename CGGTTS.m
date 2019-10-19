@@ -61,6 +61,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 		ReferenceDelay;
 		C1delay,P1delay,P2delay; % presumption is that delays don't change across multiple files
 		BadTracks; % count of bad tracks flagged in the CGGTTS data
+        Missing; % count of tracks with missing data, flagged with asterisks
 		DualFrequency;
         
 		% Indices into the data matrix
@@ -138,7 +139,8 @@ classdef CGGTTS < matlab.mixin.Copyable
 			obj.P1delay=0;
 			obj.P2delay=0;
 			obj.BadTracks=0;
-				
+			obj.Missing=0;
+            
 			for mjd=startMJD:stopMJD
 				if (namingConvention == CGGTTS.SimpleName)
 					fname  = [path int2str(mjd) filestub];
@@ -213,11 +215,12 @@ classdef CGGTTS < matlab.mixin.Copyable
 						elseif (obj.Version == CGGTTS.V_2)
 							%FIXME
 						elseif (obj.Version == CGGTTS.V_2E)
+                            % FIXME only covers the usual case
 							if (length(dly)==1)
 								obj.C1delay = dly{1}{1};
 							elseif (length(dly)==2)
-								obj.P1delay = str2double(dly{1}{1});
-								obj.P2delay = str2double(dly{2}{1});
+								obj.P1delay = dly{1}{1};
+								obj.P2delay = dly{2}{1};
 							end
 						end
 					end
@@ -320,7 +323,11 @@ classdef CGGTTS < matlab.mixin.Copyable
 				% Read the tracks
 				% Don't use fscanf(,inf) because we scan for a character in the first field of V2E files (which then picks up the newline)
 				while (~feof(fh))
-          l = fgetl(fh);
+                    l = fgetl(fh);
+                    if (true == contains(l,'***'))
+                        obj.Missing=obj.Missing + 1;
+                        continue; % just skip them for the present
+                    end
 					if (obj.DualFrequency == 0)
 						if (obj.Version == CGGTTS.V_1)
 							cctftrks = sscanf(l,  '%d %x %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %x'); % (18) +5 for HHMMSS
@@ -446,11 +453,11 @@ classdef CGGTTS < matlab.mixin.Copyable
 			fprintf('%s\n',obj.Lab);
 			fprintf('Cable delay = %g\n', obj.CableDelay);
 			fprintf('Reference delay = %g\n', obj.ReferenceDelay);
-			fprintf('CA internal delay = %g\n', obj.CADelay);
-			fprintf('P1 internal delay = %g\n', obj.P1Delay);
-			fprintf('P2 internal delay = %g\n', obj.P2Delay);
+			fprintf('CA internal delay = %g\n', obj.C1delay);
+			fprintf('P1 internal delay = %g\n', obj.P1delay);
+			fprintf('P2 internal delay = %g\n', obj.P2delay);
 			fprintf('Dual frequency =', obj.DualFrequency);
-			fprintf('Tracks = %g, (bad = %g)\n ',size(obj.Tracks,1),obj.BadTracks);
+			fprintf('Tracks = %g, (bad = %g, missing = %g)\n ',size(obj.Tracks,1),obj.BadTracks,obj.Missing);
 		end
         
 		function [refgps]=AverageREFSYS(obj,varargin)
