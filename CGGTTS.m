@@ -458,7 +458,62 @@ classdef CGGTTS < matlab.mixin.Copyable
 			fprintf('P2 internal delay = %g\n', obj.P2delay);
 			fprintf('Dual frequency =', obj.DualFrequency);
 			fprintf('Tracks = %g, (bad = %g, missing = %g)\n ',size(obj.Tracks,1),obj.BadTracks,obj.Missing);
-		end
+        end
+   
+        function [svcnt]=SVCount(obj,varargin)
+		
+			if (rem(nargin - 1,2) ~= 0)
+				fprintf('%d\n',nargin);
+				error('CGGTTS:SVCount','missing option or argument');
+			end 
+			% Count SV at each observation time
+			
+			satsys = 'G'; % GPS is default
+			
+			nopts = (nargin - 1)/2;
+			for i=1:nopts
+				a = lower(varargin{i*2});
+				if (strcmp(varargin{i*2-1},'SatelliteSystem'))
+					if (strcmp(a,'g'))
+						satsys='G';
+					elseif (strcmp(a,'r'))
+						satsys='R'
+					elseif (strcmp(a,'e'))
+						satsys='E';
+					end
+				end
+			end
+	
+			n = size(obj.Tracks(),1);
+			i=1;
+			cnt=0;
+			sampcnt=0;
+			svcnt=[];
+			lastmjd=obj.Tracks(i,obj.MJD);
+			lastst=obj.Tracks(i,obj.STTIME);
+		
+			while (i<=n)
+				if (~(obj.Tracks(i,obj.SATSYS) == satsys))
+					i=i+1;
+					continue;
+				end
+				if (obj.Tracks(i,obj.MJD) == lastmjd && obj.Tracks(i,obj.STTIME) == lastst)
+					sampcnt=sampcnt+1;    
+                else
+					cnt=cnt+1;
+					svcnt(cnt,:) = [ lastmjd+lastst/86400.0 sampcnt ];
+					sampcnt=1;
+						
+				end
+				lastmjd=obj.Tracks(i,obj.MJD);
+				lastst=obj.Tracks(i,obj.STTIME);
+				i=i+1;
+			end
+			if (sampcnt > 0)
+				cnt=cnt+1;
+				svcnt(cnt,:) = [lastmjd+lastst/86400.0 sampcnt];
+			end
+        end
         
 		function [refgps]=AverageREFSYS(obj,varargin)
 		
