@@ -122,7 +122,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 						namingConvention=CGGTTS.SimpleName;
 					else
 						error('CGGTTS:CGGTTS','bad argument %s',varargin{i*2});
-					end
+                    end
 				else
 						error('CGGTTS:CGGTTS','unknown option %s',varargin{i*2-1});
 				end
@@ -582,9 +582,29 @@ classdef CGGTTS < matlab.mixin.Copyable
 			end
 		end
     
-    function [m1,m2]=match(obj,cggtts2)
+    function [m1,m2]=match(obj,cggtts2,varargin)
 			% Match tracks with another CGGTTS object
 			% Returns two matched CGGTTS objects
+            matchEphemeris = 0;
+            if (rem(nargin - 2,2) ~= 0)
+				error('CGGTTS:match','missing option or argument');
+			end 
+			
+			nopts = (nargin - 2)/2;
+			for i=1:nopts
+				a = lower(varargin{i*2});
+                if (strcmp(varargin{i*2-1},'MatchEphemeris'))
+					
+					if (strcmp(a,'yes'))
+						matchEphemeris=1;
+					elseif (strcmp(a,'no'))
+						matchEphemeris=0;
+					else
+						error('CGGTTS:match','bad argument %s',varargin{i*2});
+                    end
+                end
+            end
+            
 			m1=copy(obj);
 			m2=copy(cggtts2);
 			
@@ -601,9 +621,11 @@ classdef CGGTTS < matlab.mixin.Copyable
 				mjd1=m1.Tracks(i,m1.MJD);
 				st1 =m1.Tracks(i,m1.STTIME);
 				prn1=m1.Tracks(i,m1.PRN);
+                iode1=m1.Tracks(i,m1.IOE);
 				while (j<=n2)
 					mjd2=m2.Tracks(j,m2.MJD);
 					st2 =m2.Tracks(j,m2.STTIME);
+                    iode2=m2.Tracks(i,m2.IOE);
 					if (mjd2 > mjd1)    
 						break% stop searching - need to move pointer1
 					elseif (mjd2 < mjd1)
@@ -618,8 +640,9 @@ classdef CGGTTS < matlab.mixin.Copyable
 							mjd2=m2.Tracks(j,m2.MJD);
 							st2 =m2.Tracks(j,m2.STTIME);
 							prn2=m2.Tracks(j,m2.PRN);
+                            iode2=m2.Tracks(i,m2.IOE);
 						end
-						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<=n2))
+						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (iode1 == iode2) && (j<=n2))
 							% It's a match
 							rx1Matches(i)=0;
 							rx2Matches(j)=0; 
