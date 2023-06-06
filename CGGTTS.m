@@ -201,10 +201,17 @@ classdef CGGTTS < matlab.mixin.Copyable
 				hdrline = fgets(fh);
 				% Line 10 FRAME
 				hdrline = fgets(fh);
+
 				% Line 11 COMMENTS
-				hdrline = fgets(fh);
+                while 1
+                    hdrline = fgets(fh);
+                    if isempty(regexp(hdrline,'COMMENTS\s*='))
+                        break;
+                    end
+                end
+
 				% Line 12 INT DLY or for V2E SYSDLY, or TOTDLY
-				hdrline = fgets(fh);
+				% Already read it
 				
 				[mat]=regexp(hdrline,'INT\s+DLY\s*=','match');
 				if (size(mat)) % if INT DLY, then read CABDLY and REFDLY for all versions
@@ -260,8 +267,7 @@ classdef CGGTTS < matlab.mixin.Copyable
 				else
 					if ((obj.Version==CGGTTS.V_1) || (obj.Version==CGGTTS.V_2))
 						warning('Bad INT DLY in %s',fname);
-					else
-						hdrline = fgets(fh);
+                    else
 						[mat]=regexp(hdrline,'SYS\s+DLY\s*=','match');
 						if (size(mat))
 							[mat]=regexp(hdrline,'REF\s+DLY\s*=\s*([+-]?\d+\.?\d*)','tokens');
