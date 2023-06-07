@@ -641,8 +641,12 @@ classdef CGGTTS < matlab.mixin.Copyable
 							st2 =m2.Tracks(j,m2.STTIME);
 							prn2=m2.Tracks(j,m2.PRN);
                             iode2=m2.Tracks(i,m2.IOE);
-						end
-						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (iode1 == iode2) && (j<=n2))
+                        end
+                        ephemerisOK = 1;
+                        if matchEphemeris
+                            ephemerisOK = (iode1 == iode2);
+                        end
+						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (ephemerisOK) && (j<=n2))
 							% It's a match
 							rx1Matches(i)=0;
 							rx2Matches(j)=0; 
