@@ -246,7 +246,7 @@ classdef RINEX3O < RINEXOBaseClass
 					day = sscanf(l(11:12),'%d');
 					hr = sscanf(l(14:15),'%d');
 					min = sscanf(l(17:18),'%d');
-					sec = sscanf(l(19:29),'%d');
+					sec = sscanf(l(19:29),'%f');
 					dt  = datetime(yr,mon,day,hr,min,sec); % default TZ is UTC
 					toffset = floor((posixtime(dt) - tref)/86400)*86400.0;
 					
