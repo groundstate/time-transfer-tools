@@ -586,6 +586,8 @@ classdef CGGTTS < matlab.mixin.Copyable
 			% Match tracks with another CGGTTS object
 			% Returns two matched CGGTTS objects
             matchEphemeris = 0;
+            matchMode=0; % default is to match tracks, typically for CV
+
             if (rem(nargin - 2,2) ~= 0)
 				error('CGGTTS:match','missing option or argument');
 			end 
@@ -603,6 +605,15 @@ classdef CGGTTS < matlab.mixin.Copyable
 						error('CGGTTS:match','bad argument %s',varargin{i*2});
                     end
                 end
+                if (strcmp(varargin{i*2-1},'MatchingMode'))
+                    if (strcmp(a,'tracks'))
+						matchMode = 0;
+					elseif (strcmp(a,'tracktime'))
+						matchMode = 1;
+					else
+						error('CGGTTS:match','bad argument %s',varargin{i*2});
+                    end
+                end
             end
             
 			m1=copy(obj);
@@ -616,53 +627,99 @@ classdef CGGTTS < matlab.mixin.Copyable
 				
 			i=1;
 			j=1;
-			
-			while (i<=n1)
-				mjd1=m1.Tracks(i,m1.MJD);
-				st1 =m1.Tracks(i,m1.STTIME);
-				prn1=m1.Tracks(i,m1.PRN);
-                iode1=m1.Tracks(i,m1.IOE);
-				while (j<=n2)
-					mjd2=m2.Tracks(j,m2.MJD);
+			if (matchMode == 0)
+			    while (i<=n1)
+				    mjd1=m1.Tracks(i,m1.MJD);
+				    st1 =m1.Tracks(i,m1.STTIME);
+				    prn1=m1.Tracks(i,m1.PRN);
+                    iode1=m1.Tracks(i,m1.IOE);
+				    while (j<=n2)
+					    mjd2=m2.Tracks(j,m2.MJD);
+					    st2 =m2.Tracks(j,m2.STTIME);
+                        iode2=m2.Tracks(i,m2.IOE);
+					    if (mjd2 > mjd1)    
+						    break% stop searching - need to move pointer1
+					    elseif (mjd2 < mjd1)
+						    j=j+1; % need to move pointer2 ahead
+					    elseif  (st2>st1) % MJDs must be same
+						    break % stop searching - need to move pointer2
+					    elseif ((mjd1==mjd2) && (st1 == st2))
+						    % Times are matched so search for the track
+						    prn2 =m2.Tracks(j,m2.PRN);
+						    while ((prn1 > prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<n2))
+							    j=j+1;
+							    mjd2=m2.Tracks(j,m2.MJD);
+							    st2 =m2.Tracks(j,m2.STTIME);
+							    prn2=m2.Tracks(j,m2.PRN);
+                                iode2=m2.Tracks(i,m2.IOE);
+                            end
+                            ephemerisOK = 1;
+                            if matchEphemeris
+                                ephemerisOK = (iode1 == iode2);
+                            end
+						    if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (ephemerisOK) && (j<=n2))
+							    % It's a match
+							    rx1Matches(i)=0;
+							    rx2Matches(j)=0; 
+							    j=j+1;
+							    break
+						    else
+							    % no match so move to next i
+							    break
+						    end;
+					    else
+						    j=j+1;
+					    end
+				    end
+				    i=i+1;
+			    end
+            end
+
+            if (matchMode == 1) % nb match by ephemeris does nothing
+                while (i<=n1 && j <= n2)
+				    mjd1=m1.Tracks(i,m1.MJD);
+				    st1 =m1.Tracks(i,m1.STTIME);
+                    mjd2=m2.Tracks(j,m2.MJD);
 					st2 =m2.Tracks(j,m2.STTIME);
-                    iode2=m2.Tracks(i,m2.IOE);
-					if (mjd2 > mjd1)    
-						break% stop searching - need to move pointer1
-					elseif (mjd2 < mjd1)
-						j=j+1; % need to move pointer2 ahead
-					elseif  (st2>st1) % MJDs must be same
-						break % stop searching - need to move pointer2
-					elseif ((mjd1==mjd2) && (st1 == st2))
-						% Times are matched so search for the track
-						prn2 =m2.Tracks(j,m2.PRN);
-						while ((prn1 > prn2) && (mjd1 == mjd2) && (st1 == st2) && (j<n2))
-							j=j+1;
-							mjd2=m2.Tracks(j,m2.MJD);
-							st2 =m2.Tracks(j,m2.STTIME);
-							prn2=m2.Tracks(j,m2.PRN);
-                            iode2=m2.Tracks(i,m2.IOE);
+                    if (mjd1 < mjd2)
+                        i = i + 1; % move pointer 1 forward
+                    elseif (mjd2 < mjd1)
+                        j = j + 1; % move pointer 2 forward
+                    else % mjds match
+                        if (st1 < st2)
+                            i = 1 + 1;
+                        elseif (st2 < st1)
+                            j = j + 1;
+                        else % it's a Perfect Match!
+                            % So we need to tag all of the tracks at
+                            % this time
+                            mmjd = mjd1;
+                            mst  = st1;
+                            while (i<= n1)
+                                mjd1 = m1.Tracks(i,m1.MJD);
+				                st1  = m1.Tracks(i,m1.STTIME);
+                                if (mjd1 == mmjd && st1 == mst)
+                                    rx1Matches(i)=0;
+                                    i = i + 1;
+                                else
+                                   break;
+                                end
+                            end
+                            while (j <= n2)
+                                mjd2 = m2.Tracks(j,m2.MJD);
+				                st2  = m2.Tracks(j,m2.STTIME);
+                                if (mjd2 == mmjd && st2 == mst)
+                                    rx2Matches(j)=0;
+                                    j = j + 1;
+                                else
+                                   break;
+                                end
+                            end
                         end
-                        ephemerisOK = 1;
-                        if matchEphemeris
-                            ephemerisOK = (iode1 == iode2);
-                        end
-						if ((prn1 == prn2) && (mjd1 == mjd2) && (st1 == st2) && (ephemerisOK) && (j<=n2))
-							% It's a match
-							rx1Matches(i)=0;
-							rx2Matches(j)=0; 
-							j=j+1;
-							break
-						else
-							% no match so move to next i
-							break
-						end;
-					else
-						j=j+1;
-					end
-				end
-				i=i+1;
-			end
-			
+                    end
+                end
+            end
+
 			% Remove unmatched tracks
 			m1.Tracks(any(rx1Matches,2),:)=[];
 			m2.Tracks(any(rx2Matches,2),:)=[]; 
