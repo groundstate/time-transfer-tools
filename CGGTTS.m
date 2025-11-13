@@ -403,10 +403,11 @@ classdef CGGTTS < matlab.mixin.Copyable
       obj.SortSVN();
 		end
         
-		function obj = FilterTracks( obj, maxDSG, minTrackLength )
+		function obj = FilterTracks( obj, maxDSG, maxSRSYS,minTrackLength )
 			% Applies basic filtering to CGGTTS data
 			% Retain for backwards compatibility with legacy code
 			obj = obj.Filter(obj.DSG, 0, maxDSG);
+            obj = obj.Filter(obj.SRSYS, -maxSRSYS, maxSRSYS);
 			obj = obj.Filter(obj.TRKL, minTrackLength, 780);
 		end
        
@@ -542,6 +543,8 @@ classdef CGGTTS < matlab.mixin.Copyable
 						satsys='R'
 					elseif (strcmp(a,'e'))
 						satsys='E';
+                    elseif (strcmp(a,'c'))
+						satsys='C';
 					end
 				end
 			end
